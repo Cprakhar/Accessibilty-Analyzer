@@ -3,6 +3,7 @@ package services
 import (
 	"backend/models"
 	"context"
+	"net/url"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -21,10 +22,15 @@ func InitSuggestionService(db *mongo.Database) {
 	suggestionCollection = db.Collection("suggestions")
 }
 
-func CreateReport(ctx context.Context, userId primitive.ObjectID, url, html string) (*models.Report, error) {
+func CreateReport(ctx context.Context, userId primitive.ObjectID, urlStr, html string) (*models.Report, error) {
+	domain := ""
+	if parsed, err := url.Parse(urlStr); err == nil {
+		domain = parsed.Hostname()
+	}
 	report := &models.Report{
 		UserID:          userId,
-		URL:             url,
+		URL:             urlStr,
+		Domain:          domain,
 		HTMLSnapshot:    html,
 		AnalysisResults: nil,
 		CreatedAt:       time.Now(),

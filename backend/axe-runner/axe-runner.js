@@ -2,21 +2,26 @@ const puppeteer = require('puppeteer');
 const axeCore = require('axe-core');
 
 async function runAxe({ url, html }) {
-  const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
+  const browser = await puppeteer.launch({headless: "new", args: ['--no-sandbox'] });
   const page = await browser.newPage();
-  if (url) {
-    await page.goto(url, { waitUntil: 'networkidle2' });
-  } else if (html) {
-    await page.setContent(html, { waitUntil: 'networkidle2' });
-  } else {
-    throw new Error('Must provide url or html');
+  try {
+    if (url) {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 10000 });
+    } else if (html) {
+      await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 10000 });
+    } else {
+      throw new Error('Must provide url or html');
+    }
+    await page.addScriptTag({ content: axeCore.source });
+    const results = await page.evaluate(async () => {
+      return await window.axe.run();
+    });
+    await browser.close();
+    return results;
+  } catch (e) {
+    await browser.close();
+    return { error: true, message: e.message, url };
   }
-  await page.addScriptTag({ content: axeCore.source });
-  const results = await page.evaluate(async () => {
-    return await window.axe.run();
-  });
-  await browser.close();
-  return results;
 }
 
 async function main() {

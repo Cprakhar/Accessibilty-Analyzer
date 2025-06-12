@@ -18,6 +18,7 @@ type Report struct {
 	ID              primitive.ObjectID `bson:"_id,omitempty" json:"_id"`
 	UserID          primitive.ObjectID `bson:"userId" json:"userId"`
 	URL             string             `bson:"url" json:"url"`
+	Domain          string             `bson:"domain" json:"domain"` // new field for root domain
 	HTMLSnapshot    string             `bson:"htmlSnapshot" json:"htmlSnapshot"`
 	AnalysisResults interface{}        `bson:"analysisResults" json:"analysisResults"`
 	CreatedAt       time.Time          `bson:"createdAt" json:"createdAt"`

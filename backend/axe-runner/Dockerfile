@@ -1,9 +1,20 @@
-FROM node:20-slim
+FROM node:22.16-slim
+
+# Install Chromium dependencies
+RUN apt update && \
+    apt install chromium -y && \
+    rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
+
+# Install dependencies, but skip Puppeteer's Chromium download
 ENV PUPPETEER_SKIP_DOWNLOAD=true
-RUN apt-get update && apt-get install -y chromium && rm -rf /var/lib/apt/lists/*
-COPY package.json ./
-RUN npm install --omit=dev
-COPY axe-runner.js ./
+COPY package.json package-lock.json* ./
+RUN npm install
+
+COPY . .
+
+# Set Puppeteer to use system Chromium
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
-ENTRYPOINT ["node", "axe-runner.js"]
+
+CMD ["node", "crawler.js"]
