@@ -27,6 +27,7 @@
 *.pem
 backend.log
 env-init.sh
+backend/backend
 
 # debug
 npm-debug.log*

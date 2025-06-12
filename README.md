@@ -38,7 +38,7 @@ npm run dev
 The app will be available at http://localhost:3000
 
 ### Environment Variables
-- Copy `backend/.env.example` to `backend/.env` and fill in your values
+- Copy `.env.example` to `.env` and fill in your values
 - Set up MongoDB and JWT secret as described in backend/README.md
 
 ## Monorepo Notes

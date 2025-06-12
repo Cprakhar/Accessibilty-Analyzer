@@ -2,6 +2,7 @@ package main
 
 import (
 	"backend/api"
+	"backend/jobs"
 	"backend/middleware"
 	"backend/services"
 	"backend/utils"
@@ -30,6 +31,7 @@ func main() {
 	}
 	db := client.Database("accessibility_analyser")
 	services.InitUserService(db)
+	services.InitReportService(db)
 
 	r := gin.Default()
 
@@ -38,8 +40,12 @@ func main() {
 
 	// Register authentication routes
 	api.RegisterAuthRoutes(r)
+	api.RegisterAnalyzeRoutes(r)
 
 	// TODO: Register other API routes here
+
+	// Start background worker for analysis jobs
+	jobs.StartAnalyzeWorker()
 
 	port := os.Getenv("PORT")
 	if port == "" {

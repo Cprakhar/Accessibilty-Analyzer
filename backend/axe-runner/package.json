@@ -1,0 +1,9 @@
+{
+  "name": "axe-runner",
+  "version": "1.0.0",
+  "main": "axe-runner.js",
+  "dependencies": {
+    "puppeteer": "^21.3.8",
+    "axe-core": "^4.8.2"
+  }
+}
