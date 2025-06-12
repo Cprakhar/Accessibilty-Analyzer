@@ -32,6 +32,7 @@ func main() {
 	db := client.Database("accessibility_analyser")
 	services.InitUserService(db)
 	services.InitReportService(db)
+	services.InitSuggestionService(db)
 
 	r := gin.Default()
 
@@ -41,6 +42,7 @@ func main() {
 	// Register authentication routes
 	api.RegisterAuthRoutes(r)
 	api.RegisterAnalyzeRoutes(r)
+	api.RegisterReportRoutes(r)
 
 	// TODO: Register other API routes here
 

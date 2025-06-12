@@ -85,5 +85,17 @@ func processAnalyzeJob(job AnalyzeJob) {
 		return
 	}
 	utils.LogAction(userID, "analyze", "success", "Analysis complete for report "+job.ReportID.Hex())
-	// TODO: Trigger LLM suggestion generation here
+	suggestions, err := services.GenerateSuggestionsFromLLM(results)
+	if err != nil {
+		utils.LogAction(userID, "llm_suggestion", "failure", "LLM error: "+err.Error())
+	} else if len(suggestions) > 0 {
+		err2 := services.CreateSuggestion(context.Background(), job.ReportID, suggestions)
+		if err2 != nil {
+			utils.LogAction(userID, "llm_suggestion", "failure", "Failed to save suggestions: "+err2.Error())
+		} else {
+			utils.LogAction(userID, "llm_suggestion", "success", "Suggestions saved for report "+job.ReportID.Hex())
+		}
+	} else {
+		utils.LogAction(userID, "llm_suggestion", "failure", "No suggestions returned from LLM")
+	}
 }
