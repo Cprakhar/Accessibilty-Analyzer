@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
+
+	"github.com/kaptinlin/jsonrepair"
 )
 
 type LLMResponse struct {
@@ -22,39 +25,77 @@ func GenerateSuggestionsFromLLM(analysisResults interface{}) ([]models.Suggestio
 	}
 
 	// Format concise prompt for LLM (OpenAI-compatible)
-	prompt := `You are an expert web accessibility consultant. Analyze the following axe-core accessibility violations and provide actionable, developer-friendly suggestions for each issue as a JSON array. For each violation, use these exact attribute names:
-- issue (string)
-- summary (object: problem, impact, affectedUsers)
-- whyMatters (object: userImpact, assistiveTechAffected)
-- howToFix (object: step1, codeExample)
-- testingInstructions (object: verify, tools)
-- priorityLevel (object: urgency, wcagLevel)
+	prompt := `You are an expert web accessibility consultant. Analyze the following axe-core accessibility violations and provide actionable, developer-friendly suggestions for each issue as a JSON array.
 
-Example:
-[
-  {
-    "issue": "html-has-lang",
-    "summary": {"problem": "...", "impact": "...", "affectedUsers": "..."},
-    "whyMatters": {"userImpact": "...", "assistiveTechAffected": "..."},
-    "howToFix": {"step1": "...", "codeExample": "..."},
-    "testingInstructions": {"verify": "...", "tools": "..."},
-    "priorityLevel": {"urgency": "...", "wcagLevel": "..."}
-  }
-]
+Now consider the following TypeScript interface for the JSON schema:
+
+interface ViolationSummary {
+    problem: string;
+    impact: "critical" | "serious" | "moderate" | "minor";
+    affectedUsers: string;
+}
+
+interface WhyMatters {
+    userImpact: string;
+    assistiveTechAffected: string;
+}
+
+interface HowToFix {
+    step1: string;
+    codeExample: string;
+}
+
+interface TestingInstructions {
+    verify: string;
+    tools: string;
+}
+
+interface PriorityLevel {
+    urgency: "high" | "medium" | "low";
+    wcagLevel: "A" | "AA" | "AAA";
+}
+
+interface AccessibilityViolation {
+    issue: string;
+    summary: ViolationSummary;
+    whyMatters: WhyMatters;
+    howToFix: HowToFix;
+    testingInstructions: TestingInstructions;
+    priorityLevel: PriorityLevel;
+}
+
+interface AccessibilityAnalysis {
+    violations: AccessibilityViolation[];
+}
+
+IMPORTANT FORMATTING RULES:
+- Use single quotes for all HTML attribute values in codeExample fields e.g.: <html lang='en'>
+- Ensure all JSON is valid and parseable
+- Match the exact field names from the TypeScript interface
+- Use only the specified enum values for impact, urgency, and wcagLevel
 
 Violations JSON:
 <analysisResults>
 
-Respond ONLY with a JSON array of suggestions, no extra explanation or formatting.`
-	// Only send 'violations' to the LLM
+Write the accessibility analysis according to the AccessibilityAnalysis schema.
+On the response, include only the JSON. No additional text, explanations, or formatting.`
+	// Only send up to 5 violations to the LLM to avoid exceeding request length
 	var violations interface{} = analysisResults
 	if m, ok := analysisResults.(map[string]interface{}); ok {
 		if v, exists := m["violations"]; exists {
-			violations = v
+			if arr, ok := v.([]interface{}); ok && len(arr) > 5 {
+				violations = arr[:5]
+			} else {
+				violations = v
+			}
 		}
 	}
 
-	jsonResults, _ := json.Marshal(violations)
+	// Wrap violations in the expected schema for the LLM prompt
+	analysis := map[string]interface{}{
+		"violations": violations,
+	}
+	jsonResults, _ := json.Marshal(analysis)
 	prompt = strings.Replace(prompt, "<analysisResults>", string(jsonResults), 1)
 
 	payload := map[string]interface{}{
@@ -74,11 +115,26 @@ Respond ONLY with a JSON array of suggestions, no extra explanation or formattin
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+llmApiKey)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
+	var resp *http.Response
+	maxRetries := 5
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		resp, err = http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		if resp.StatusCode == 429 {
+			resp.Body.Close()
+			// Exponential backoff: 1s, 2s, 4s, 8s, 16s
+			delay := 1 << attempt
+			println("[LLM] 429 Too Many Requests, retrying in", delay, "seconds...")
+			time.Sleep(time.Duration(delay) * time.Second)
+			continue
+		}
+		break
 	}
-	defer resp.Body.Close()
+	if resp.StatusCode == 429 {
+		return nil, errors.New("LLM API error: 429 Too Many Requests (rate limited after retries)")
+	}
 	if resp.StatusCode != 200 {
 		return nil, errors.New("LLM API error: " + resp.Status)
 	}
@@ -119,6 +175,14 @@ Respond ONLY with a JSON array of suggestions, no extra explanation or formattin
 	var suggestions []models.SuggestionItem
 	err = json.Unmarshal([]byte(clean), &suggestions)
 	if err != nil {
+		// Try to repair the JSON using github.com/kaptinlin/jsonrepair
+		repaired, repairErr := jsonrepair.JSONRepair(clean)
+		if repairErr == nil {
+			err = json.Unmarshal([]byte(repaired), &suggestions)
+			if err == nil {
+				return suggestions, nil
+			}
+		}
 		// If still fails, return error with raw response for debugging
 		return nil, errors.New("LLM did not return valid JSON array of suggestions. Raw response: " + raw)
 	}

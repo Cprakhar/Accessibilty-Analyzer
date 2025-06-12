@@ -17,4 +17,4 @@ COPY . .
 # Set Puppeteer to use system Chromium
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-CMD ["node", "crawler.js"]
+CMD ["node", "axe-runner.js"]

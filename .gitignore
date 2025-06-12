@@ -28,6 +28,7 @@
 backend.log
 env-init.sh
 backend/backend
+backend/*.csv
 
 # debug
 npm-debug.log*
